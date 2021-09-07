@@ -101,7 +101,7 @@ if __name__ == '__main__':
                 logging.debug('Empty file {}'.format(file))
         # Write a TSV file
         fout_name = '{}/{}_data.tsv'.format(fout_path.parent, fout_path.stem)
-        data.to_csv(fout_name, sep='\t', quoting=csv.QUOTE_NONE, float_format='%.3f')
+        data.to_csv(fout_name, sep='\t', quoting=csv.QUOTE_NONE, index=False, float_format='%.3f')
         logging.info('DSSP data written in {}'.format(fout_name))
     elif args.in_dssp:
         # Start from checkpoint file
