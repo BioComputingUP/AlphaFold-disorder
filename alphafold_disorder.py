@@ -51,8 +51,9 @@ def process_pdb(pdb_file, pdb_name, dssp_path='mkdssp'):
     for i, residue in enumerate(structure.get_residues()):
         lddt = residue['CA'].get_bfactor() / 100.0
         rsa = float(dssp_dict.get((residue.get_full_id()[2], residue.id))[3])
-        df.append((pdb_name, i + 1, seq1(residue.get_resname()), lddt, 1 - lddt, rsa))
-    df = pd.DataFrame(df, columns=['name', 'pos', 'aa', 'lddt', 'disorder', 'rsa'])
+        ss = dssp_dict.get((residue.get_full_id()[2], residue.id))[2]
+        df.append((pdb_name, i + 1, seq1(residue.get_resname()), lddt, 1 - lddt, rsa, ss))
+    df = pd.DataFrame(df, columns=['name', 'pos', 'aa', 'lddt', 'disorder', 'rsa', 'ss'])
 
     return df
 
