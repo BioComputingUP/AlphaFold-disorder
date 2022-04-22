@@ -5,13 +5,15 @@ from Bio.SeqUtils import seq1
 from Bio.PDB import DSSP
 import numpy as np
 import warnings
-warnings.simplefilter(action='ignore', category=FutureWarning)
 import pandas as pd
 import argparse
 import logging.config
 import sys
 import csv
 from pathlib import Path
+import tempfile
+import gzip
+import shutil
 
 
 def moving_average(x, w):
@@ -19,14 +21,30 @@ def moving_average(x, w):
     return np.convolve(x, np.ones(w), 'valid') / w
 
 
+def is_gz_file(filepath):
+    with open(filepath, 'rb') as test_f:
+        return test_f.read(2) == b'\x1f\x8b'
+
+
 def process_pdb(pdb_file, pdb_name, dssp_path='mkdssp'):
+    # Decompress the structure if necessary
+    real_file = pdb_file
+    if is_gz_file(pdb_file):
+        file_ext = Path(Path(pdb_file).stem).suffix
+        _, real_file = tempfile.mkstemp(prefix="alphafold-disorder_", suffix=file_ext)
+        with open(real_file, "wb") as tmp:
+            shutil.copyfileobj(gzip.open(pdb_file), tmp)
 
     # Load the structure
-    structure = PDBParser(QUIET=True).get_structure('', pdb_file)
+    structure = PDBParser(QUIET=True).get_structure('', real_file)
 
     # Calculate DSSP
-    dssp = DSSP(structure[0], pdb_file, dssp=dssp_path)  # WARNING Check the path of mkdssp
+    dssp = DSSP(structure[0], real_file, dssp=dssp_path)  # WARNING Check the path of mkdssp
     dssp_dict = dict(dssp)
+
+    # Remove decompressed if necessary
+    if real_file != pdb_file:
+        Path(real_file).unlink()
 
     # Parse b-factor (pLDDT) and DSSP
     df = []
@@ -91,6 +109,9 @@ if __name__ == '__main__':
                         level=logging.getLevelName(args.ll.upper()), stream=sys.stdout)
     logging.getLogger('numexpr').setLevel(logging.WARNING)  # Remove numexpr warning
 
+    # Disable pandas warnings
+    warnings.simplefilter(action='ignore', category=FutureWarning)
+
     if args.in_pdb_dir:
         # Generate DSSP output from PDB files
         data = pd.DataFrame()
@@ -98,7 +119,7 @@ if __name__ == '__main__':
         for file in p.iterdir():
             if file.stat().st_size > 0:  # and 'P52799' in file.stem:  # 'P13693', 'P52799', 'P0AE72', 'Q13148'
                 logging.debug('Processing PDB {}'.format(file))
-                data = data.append(process_pdb(file, file.stem, dssp_path=args.dssp))
+                data = data.append(process_pdb(file, file.stem.split('.')[0], dssp_path=args.dssp))
             else:
                 logging.debug('Empty file {}'.format(file))
         # Write a TSV file
