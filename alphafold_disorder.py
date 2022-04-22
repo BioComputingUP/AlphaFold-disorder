@@ -4,6 +4,8 @@ from Bio.PDB import PDBParser
 from Bio.SeqUtils import seq1
 from Bio.PDB import DSSP
 import numpy as np
+import warnings
+warnings.simplefilter(action='ignore', category=FutureWarning)
 import pandas as pd
 import argparse
 import logging.config
