@@ -33,7 +33,8 @@ def process_pdb(pdb_file, pdb_name, dssp_path='mkdssp'):
         file_ext = Path(Path(pdb_file).stem).suffix
         _, real_file = tempfile.mkstemp(prefix="alphafold-disorder_", suffix=file_ext)
         with open(real_file, "wb") as tmp:
-            shutil.copyfileobj(gzip.open(pdb_file), tmp)
+            with gzip.open(pdb_file) as pdbf:
+                shutil.copyfileobj(pdbf, tmp)
 
     # Load the structure
     structure = PDBParser(QUIET=True).get_structure('', real_file)
