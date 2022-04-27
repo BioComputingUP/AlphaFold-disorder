@@ -14,6 +14,7 @@ from pathlib import Path
 import tempfile
 import gzip
 import shutil
+import os
 
 
 def moving_average(x, w):
@@ -31,10 +32,11 @@ def process_pdb(pdb_file, pdb_name, dssp_path='mkdssp'):
     real_file = pdb_file
     if is_gz_file(pdb_file):
         file_ext = Path(Path(pdb_file).stem).suffix
-        _, real_file = tempfile.mkstemp(prefix="alphafold-disorder_", suffix=file_ext)
+        fd, real_file = tempfile.mkstemp(prefix="alphafold-disorder_", suffix=file_ext)
         with open(real_file, "wb") as tmp:
             with gzip.open(pdb_file) as pdbf:
                 shutil.copyfileobj(pdbf, tmp)
+        os.close(fd)
 
     # Load the structure
     structure = PDBParser(QUIET=True).get_structure('', real_file)
@@ -55,7 +57,6 @@ def process_pdb(pdb_file, pdb_name, dssp_path='mkdssp'):
         ss = dssp_dict.get((residue.get_full_id()[2], residue.id))[2]
         df.append((pdb_name, i + 1, seq1(residue.get_resname()), lddt, 1 - lddt, rsa, ss))
     df = pd.DataFrame(df, columns=['name', 'pos', 'aa', 'lddt', 'disorder', 'rsa', 'ss'])
-
     return df
 
 
