@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 from Bio.PDB import PDBParser
+from Bio.PDB.MMCIFParser import FastMMCIFParser
 from Bio.SeqUtils import seq1
 from Bio.PDB import DSSP
 import numpy as np
@@ -39,7 +40,12 @@ def process_pdb(pdb_file, pdb_name, dssp_path='mkdssp'):
         os.close(fd)
 
     # Load the structure
-    structure = PDBParser(QUIET=True).get_structure('', real_file)
+    file_ext = Path(real_file).suffix
+    if file_ext in ['.pdb', '.PDB']:
+        structure = PDBParser(QUIET=True).get_structure('', real_file)
+    else:
+        # assume mmCIF
+        structure = FastMMCIFParser(QUIET=True).get_structure('', real_file)
 
     # Calculate DSSP
     dssp = DSSP(structure[0], real_file, dssp=dssp_path)  # WARNING Check the path of mkdssp
