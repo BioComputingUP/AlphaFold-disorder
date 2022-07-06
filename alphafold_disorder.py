@@ -11,7 +11,7 @@ import argparse
 import logging.config
 import sys
 import csv
-from pathlib import Path
+from pathlib import Path, PurePath
 import tempfile
 import gzip
 import shutil
@@ -41,7 +41,7 @@ def process_pdb(pdb_file, pdb_name, dssp_path='mkdssp'):
 
     # Load the structure
     file_ext = Path(real_file).suffix
-    if file_ext in ['.pdb', '.PDB']:
+    if file_ext in ['.pdb']:
         structure = PDBParser(QUIET=True).get_structure('', real_file)
     else:
         # assume mmCIF
@@ -67,7 +67,6 @@ def process_pdb(pdb_file, pdb_name, dssp_path='mkdssp'):
 
 
 def make_prediction(df, window_rsa=[25], thresholds_rsa=[0.581]):
-
     for w in window_rsa:
         # Smooth disorder score (moving average)
         column_rsa_window = 'disorder-{}'.format(w)
@@ -78,33 +77,49 @@ def make_prediction(df, window_rsa=[25], thresholds_rsa=[0.581]):
         for th_rsa in thresholds_rsa:
             column_rsa_binding = 'binding-{}-{}'.format(w, th_rsa)
             df[column_rsa_binding] = df[column_rsa_window].copy()
-            df.loc[df[column_rsa_window] > th_rsa, column_rsa_binding] = df.loc[df[column_rsa_window] > th_rsa, 'lddt'] * (1 - th_rsa) + th_rsa
+            df.loc[df[column_rsa_window] > th_rsa, column_rsa_binding] = df.loc[
+                                                                             df[column_rsa_window] > th_rsa, 'lddt'] * (
+                                                                                 1 - th_rsa) + th_rsa
 
     return df
 
 
 def parse_args():
-
     parent_parser = argparse.ArgumentParser(add_help=False)
 
     group = parent_parser.add_mutually_exclusive_group(required=True)
-    group.add_argument('-i', '--in_pdb_dir', type=str, help='A folder of PDB files')
+    group.add_argument('-i', '--in_struct', type=str,
+                       help='A single file, folder or file listing containing (gzipped) PDB or mmCIF files')
     group.add_argument('-d', '--in_dssp', type=str, help='A TSV file with RSA and pLDDT columns (checkpoint file)')
 
-    parent_parser.add_argument('-o', '--out', type=str, required=True, help='Output file. Automatically generate multiple files using this name, ignore extention')
+    parent_parser.add_argument('-o', '--out', type=str, required=True,
+                               help='Output file. Automatically generate multiple files using this name, ignore extention')
 
     parent_parser.add_argument('-f', '--format', type=str, choices=['tsv', 'caid'], default='tsv', help='Output format')
 
-    parent_parser.add_argument('-w', '--rsa_window', nargs='*', type=int, default=[25], help='Apply a moving average over window on the RSA')
-    parent_parser.add_argument('-t', '--rsa_threshold', nargs='*', type=float, default=[0.581], help='In binding prediction, filter positions with RSA values under threshold')
+    parent_parser.add_argument('-w', '--rsa_window', nargs='*', type=int, default=[25],
+                               help='Apply a moving average over window on the RSA')
+    parent_parser.add_argument('-t', '--rsa_threshold', nargs='*', type=float, default=[0.581],
+                               help='In binding prediction, filter positions with RSA values under threshold')
 
     parent_parser.add_argument('-dssp', type=str, default='mkdssp', help='Path to mkdssp (3.x)')
 
-    parent_parser.add_argument('-ll', type=str, choices=['notset', 'debug', 'info', 'warning', 'error', 'critical'], default='info', help='Log level')
+    parent_parser.add_argument('-ll', type=str, choices=['notset', 'debug', 'info', 'warning', 'error', 'critical'],
+                               default='info', help='Log level')
 
     main_parser = argparse.ArgumentParser(parents=[parent_parser])
 
     return main_parser.parse_args()
+
+
+def process_file(f):
+    result = pd.DataFrame([])
+    if f.stat().st_size > 0:  # and 'P52799' in file.stem:  # 'P13693', 'P52799', 'P0AE72', 'Q13148'
+        logging.debug('Processing PDB {}'.format(f))
+        result = process_pdb(f, f.stem.split('.')[0], dssp_path=args.dssp)
+    else:
+        logging.debug('Empty file {}'.format(f))
+    return result
 
 
 if __name__ == '__main__':
@@ -121,16 +136,32 @@ if __name__ == '__main__':
     # Disable pandas warnings
     warnings.simplefilter(action='ignore', category=FutureWarning)
 
-    if args.in_pdb_dir:
+    if args.in_struct:
         # Generate DSSP output from PDB files
         data = pd.DataFrame()
-        p = Path(args.in_pdb_dir)
-        for file in p.iterdir():
-            if file.stat().st_size > 0:  # and 'P52799' in file.stem:  # 'P13693', 'P52799', 'P0AE72', 'Q13148'
-                logging.debug('Processing PDB {}'.format(file))
-                data = data.append(process_pdb(file, file.stem.split('.')[0], dssp_path=args.dssp))
+        p = Path(args.in_struct)
+        if p.is_file():
+            # input is a single struct file or file with list
+            if ''.join(PurePath(p).suffixes) in ['.pdb', '.pdb.gz', '.cif', '.cif.gz']:
+                # process single file as input
+                processed_data = process_file(p)
+                if not processed_data.empty:
+                    data = data.append(processed_data)
             else:
-                logging.debug('Empty file {}'.format(file))
+                # process list of files as input (paths in list are relative)
+                with open(p, 'r') as list_file:
+                    for file in list_file:
+                        real_file = Path(p.parent, Path(file.strip()))
+                        processed_data = process_file(real_file)
+                        if not processed_data.empty:
+                            data = data.append(processed_data)
+        else:
+            # input is a directory
+            for file in p.iterdir():
+                processed_data = process_file(file)
+                if not processed_data.empty:
+                    data = data.append(processed_data)
+
         # Write a TSV file
         fout_name = '{}/{}_data.tsv'.format(fout_path.parent, fout_path.stem)
         data.to_csv(fout_name, sep='\t', quoting=csv.QUOTE_NONE, index=False, float_format='%.3f')
@@ -146,8 +177,8 @@ if __name__ == '__main__':
     pred = pd.DataFrame()
     for name, pdb_data in data.groupby('name'):
         pred = pred.append(make_prediction(pdb_data.copy(),
-                                   window_rsa=args.rsa_window,
-                                   thresholds_rsa=args.rsa_threshold))
+                                           window_rsa=args.rsa_window,
+                                           thresholds_rsa=args.rsa_threshold))
     logging.info('Prediction calculated')
 
     # Write to file
@@ -160,5 +191,7 @@ if __name__ == '__main__':
         for method in methods:
             with open('{}/{}_{}.dat'.format(fout_path.parent, fout_path.stem, method), 'w') as fout:
                 for name, pdb_pred in pred.groupby('name'):
-                    fout.write('>' + name + '\n' + (pdb_pred['pos'].astype(str) + '\t' + pdb_pred['aa'] + '\t' + pdb_pred[method].round(3).astype(str)).str.cat(sep='\n') + '\n')
+                    fout.write('>' + name + '\n' + (
+                            pdb_pred['pos'].astype(str) + '\t' + pdb_pred['aa'] + '\t' + pdb_pred[method].round(
+                        3).astype(str)).str.cat(sep='\n') + '\n')
         logging.info('CAID prediction files written in {}/'.format(fout_path.parent))
