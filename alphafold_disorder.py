@@ -89,7 +89,7 @@ def parse_args():
 
     group = parent_parser.add_mutually_exclusive_group(required=True)
     group.add_argument('-i', '--in_struct', type=str,
-                       help='A single file, folder or file listing containing (gzipped) PDB or mmCIF files')
+                       help='A single file, folder or file listing containing (gzipped) PDB or mmCIF files (relative paths)')
     group.add_argument('-d', '--in_dssp', type=str, help='A TSV file with RSA and pLDDT columns (checkpoint file)')
 
     parent_parser.add_argument('-o', '--out', type=str, required=True,
