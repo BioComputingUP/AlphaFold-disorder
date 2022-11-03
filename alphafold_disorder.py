@@ -187,7 +187,7 @@ if __name__ == '__main__':
         pred.to_csv(fout_name, sep='\t', quoting=csv.QUOTE_NONE, index=False, float_format='%.3f')
         logging.info('Prediction written in {}'.format(fout_path))
     elif args.format == 'caid':
-        methods = set(pred.head()) - {'name', 'pos', 'aa', 'lddt', 'rsa'}
+        methods = set(pred.head()) - {'name', 'pos', 'aa', 'lddt', 'rsa', 'ss'}
         for method in methods:
             with open('{}/{}_{}.dat'.format(fout_path.parent, fout_path.stem, method), 'w') as fout:
                 for name, pdb_pred in pred.groupby('name'):
