@@ -187,11 +187,9 @@ if __name__ == '__main__':
         pred.to_csv(fout_name, sep='\t', quoting=csv.QUOTE_NONE, index=False, float_format='%.3f')
         logging.info('Prediction written in {}'.format(fout_path))
     elif args.format == 'caid':
-        methods = set(pred.head()) - {'name', 'pos', 'aa', 'lddt', 'rsa'}
+        methods = set(pred.head()) - {'name', 'pos', 'aa', 'lddt', 'rsa', 'ss'}
         for method in methods:
             with open('{}/{}_{}.dat'.format(fout_path.parent, fout_path.stem, method), 'w') as fout:
                 for name, pdb_pred in pred.groupby('name'):
-                    fout.write('>' + name + '\n' + (
-                            pdb_pred['pos'].astype(str) + '\t' + pdb_pred['aa'] + '\t' + pdb_pred[method].round(
-                        3).astype(str)).str.cat(sep='\n') + '\n')
+                    fout.write('>' + name + '\n' + (pdb_pred['pos'].astype(str) + '\t' + pdb_pred['aa'] + '\t' + pdb_pred[method].round(3).astype(str) + '\t').str.cat(sep='\n') + '\n')
         logging.info('CAID prediction files written in {}/'.format(fout_path.parent))
