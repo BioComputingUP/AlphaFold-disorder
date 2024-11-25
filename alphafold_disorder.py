@@ -41,15 +41,17 @@ def process_pdb(pdb_file, pdb_name, dssp_path='mkdssp'):
 
     # Load the structure
     file_ext = Path(real_file).suffix
-    if file_ext in ['.pdb']:
+    if '.pdb' in file_ext:
         structure = PDBParser(QUIET=True).get_structure('', real_file)
     else:
         # assume mmCIF
         structure = FastMMCIFParser(QUIET=True).get_structure('', real_file)
 
     # Calculate DSSP
-    dssp = DSSP(structure[0], real_file, dssp=dssp_path)  # WARNING Check the path of mkdssp
+    dssp = DSSP(structure[0], real_file, dssp=dssp_path, )  # WARNING Check the path of mkdssp
+    print(dssp)
     dssp_dict = dict(dssp)
+    print(dssp_dict)
 
     # Remove decompressed if necessary
     if real_file != pdb_file:
@@ -59,6 +61,7 @@ def process_pdb(pdb_file, pdb_name, dssp_path='mkdssp'):
     df = []
     for i, residue in enumerate(structure.get_residues()):
         lddt = residue['CA'].get_bfactor() / 100.0
+
         rsa = float(dssp_dict.get((residue.get_full_id()[2], residue.id))[3])
         ss = dssp_dict.get((residue.get_full_id()[2], residue.id))[2]
         df.append((pdb_name, i + 1, seq1(residue.get_resname()), lddt, 1 - lddt, rsa, ss))
